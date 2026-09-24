@@ -1,149 +1,140 @@
-# 🚀 Установка ClickHouse и Vector через Ansible
+🚀 Ansible Project: ClickHouse + Vector + Lighthouse
 
-[![Ansible](https://img.shields.io/badge/Ansible-%3E%3D2.13-blue)](https://docs.ansible.com/)
-[![CentOS](https://img.shields.io/badge/CentOS-7-green)](https://www.centos.org/)
-[![ClickHouse](https://img.shields.io/badge/ClickHouse-22.3.3.44-yellow)](https://clickhouse.com/)
-[![Vector](https://img.shields.io/badge/Vector-0.31.0-purple)](https://vector.dev/)
+Ansible playbook для автоматической установки и настройки стека аналитики логов: ClickHouse (СУБД), Vector (агент сбора логов) и Lighthouse (веб-интерфейс).
 
-Ansible-плейбук для автоматической установки и настройки **ClickHouse** и **Vector** на серверы под управлением **CentOS 7**.
+📖 Содержание
 
----
+Общее описание
+Требования
+Структура проекта
+Инвентарь
+Переменные
+Play 1: Install ClickHouse
+Play 2: Install Vector
+Play 3: Install Lighthouse
+Шаблон конфигурации Vector
+Шаблон конфигурации Lighthouse
+Запуск Playbook
+Проверка результата
+Лицензия
 
-## 📖 Содержание
+📌 Общее описание
 
-- [Общее описание](#общее-описание)
-- [Требования](#требования)
-- [Структура проекта](#структура-проекта)
-- [Инвентарь](#инвентарь)
-- [Переменные](#переменные)
-- [Play 1: Install ClickHouse](#play-1-install-clickhouse)
-- [Play 2: Install Vector](#play-2-install-vector)
-- [Шаблон конфигурации Vector](#шаблон-конфигурации-vector)
-- [Play 3: Install lighthouse](#play-3-install-lighthouse)
-- [Шаблон конфигурации lighthouse](#шаблон-конфигурации-lighthouse)
-- [Запуск Playbook](#запуск-playbook)
-- [Проверка результата](#проверка-результата)
+Playbook разворачивает стек на серверах под управлением CentOS 7 и состоит из трёх play:
 
+Install ClickHouse — скачивание RPM-пакетов, установка СУБД, запуск сервиса, создание базы logs и таблицы logs_table.
+Install Vector — скачивание RPM-пакета, установка агента и деплой конфигурации из Jinja2-шаблона.
+Install Lighthouse — установка Nginx, Git, клонирование репозитория и публикация веб-интерфейса.
 
----
+Целевые хосты: группы clickhouse и lighthouse из инвентаря.
+Пользователь: root (через become).
 
-## Общее описание
+Upgradability notice
+При обновлении версий ClickHouse или Vector сначала останавливайте соответствующий сервис, затем запускайте playbook. Версии фиксируются в group_vars/clickhouse/vars.yml и group_vars/lighthouse/vars.yml.
 
-Playbook предназначен для развёртывания стека аналитики логов и состоит из **двух последовательных play**:
+⚙️ Требования
 
-1. **Install ClickHouse** — скачивание RPM-пакетов, установка СУБД, запуск сервиса, создание базы `logs` и таблицы `logs_table`.
-2. **Install Vector** — скачивание RPM-пакета, установка агента и деплой конфигурации из Jinja2-шаблона.
+Ansible >= 2.13 (управляющий узел)
+CentOS 7 на целевых хостах (GLIBC 2.17)
+Пользователь с sudo без пароля
 
-**Целевые хосты:** группа `clickhouse` из инвентаря.
-**Пользователь:** `root` (через `become`).
+Software
 
----
+Компонент | Версия | Назначение
+ClickHouse | 22.3.3.44 (LTS) | СУБД
+Vector | 0.31.0 | Агент логов
+Nginx | из epel-release | Веб-сервер для Lighthouse
+Git | из base | Клонирование Lighthouse
 
-## Требования
+Requirements to VM
 
-| Компонент | Версия | Назначение |
-|-----------|--------|-----------|
-| Ansible | ≥ 2.13 | Управляющий узел |
-| CentOS | 7 | Целевая ОС (GLIBC 2.17) |
-| ClickHouse | `22.3.3.44` (LTS) | СУБД |
-| Vector | `0.31.0` | Агент логов |
+2 vCPU, 4 ГБ RAM
+Открытые порты: 22 (SSH), 8123 (ClickHouse HTTP), 9000 (ClickHouse native), 80 (Lighthouse)
 
+Collections
 
-### Требования к ВМ
+# requirements.yml
+collections:
+  - name: ansible.posix
+  - name: community.general
 
-- 2 vCPU,  4 ГБ RAM** 
-- Открытые порты: `22` (SSH), `8123` (ClickHouse HTTP), `9000` (ClickHouse native)
-- Пользователь с `sudo` без пароля
+Установка:
 
----
+ansible-galaxy collection install -r requirements.yml
 
-## Структура проекта
+📁 Структура проекта
 
-```
 ansible-project/
-├── site.yml                       # Основной playbook (2 play)
+├── site.yml
+├── requirements.yml
+├── cloud-init.yml
 ├── inventory/
-│   └── prod.yml                   # Инвентарь
+│   └── prod.yml
 ├── group_vars/
-│   └── clickhouse/vars.yml             # Переменные
-└── templates/
-    └── vector.toml.j2             # Jinja2-шаблон конфига Vector
-```
+│   ├── clickhouse/vars.yml
+│   └── lighthouse/vars.yml
+├── templates/
+│   ├── vector.toml.j2
+│   └── nginx_config.j2
+├── clickhouse/          # роль ClickHouse
+├── vector-role/         # роль Vector
+└── lighthouse/          # роль Lighthouse
 
----
+🖥 Инвентарь
 
-## Инвентарь
+Файл: inventory/prod.yml
 
-**Файл:** `inventory/prod.yml`
-
-```yaml
 clickhouse:
   hosts:
     clickhouse-01:
-      ansible_host: ip хоста
+      ansible_host: <IP>
       ansible_user: centos
 
-     
-| Параметр | Описание |
-|----------|----------|
-| `ansible_host` | IP-адрес или доменное имя ВМ |
-| `ansible_user` | Пользователь для SSH |
+lighthouse:
+  hosts:
+    lighthouse-01:
+      ansible_host: <IP>
+      ansible_user: centos
 
-```
+Параметр | Описание
+ansible_host | IP-адрес или доменное имя ВМ
+ansible_user | Пользователь для SSH
 
----
+🔧 Переменные
 
-## Переменные
+Все переменные, которые можно переопределить, хранятся в group_vars/<group>/vars.yml, а также в таблице ниже.
 
-**Файл:** `group_vars/clickhouse/vars.yml`
+Name | Default Value | Description
+clickhouse_version | 22.3.3.44 | Версия ClickHouse. Поддерживается только 22.x LTS
+clickhouse_packages | [clickhouse-client, clickhouse-server, clickhouse-common-static] | Список RPM-пакетов ClickHouse
+clickhouse_database | logs | Имя базы данных для логов
+clickhouse_table | logs_table | Имя таблицы для логов
+vector_version | 0.31.0 | Версия Vector
+vector_config_dir | {{ ansible_user_dir }}/vector_config | Директория с конфигурацией Vector
+vector_config | {} | Дополнительные параметры конфигурации Vector
+lighthouse_git | URL репозитория | Git-репозиторий Lighthouse
+lighthouse_root_path | /var/www/lighthouse | Директория для статики Lighthouse
+hostvars['clickhouse-dev-1'].ansible_host_internal | — | Внутренний адрес ClickHouse для Lighthouse
 
-```yaml
----
-lickhouse_version: "22.3.3.44"
-clickhouse_packages:
-  - clickhouse-client
-  - clickhouse-server
-  - clickhouse-common-static
-vector_version: "0.31.0"
-vector_config_dir: "{{ ansible_user_dir }}/vector_config"
-vector_config:
+📦 Play 1: Install ClickHouse
 
-```
+Параметры play
 
-| Переменная | Назначение |
-|-----------|-----------|
-| `clickhouse_version` | Версия ClickHouse |
-| `clickhouse_database` | Имя базы для логов |
-| `clickhouse_table` | Имя таблицы для логов |
-| `vector_version` | Версия Vector |
-| `vector_config_dir` | Директория конфигов |
-
-
----
-
-## Play 1: Install ClickHouse
-
-### Параметры play
-
-```yaml
 - name: Install Clickhouse
   hosts: clickhouse
   become: true
   become_user: root
-```
 
-### Handlers
+Handlers
 
-| Handler | Назначение |
-|---------|-----------|
-| `Start clickhouse service` | Перезапуск `clickhouse-server` |
-| `Ensure systemd is in a clean state` | `systemctl daemon-reexec` |
+Handler | Назначение
+Start clickhouse service | Перезапуск clickhouse-server
+Ensure systemd is in a clean state | systemctl daemon-reexec
 
-### Задачи
+Задачи
 
-#### 1️⃣ Скачивание RPM-пакетов
+1️⃣ Скачивание RPM-пакетов
 
-```yaml
 - name: Get clickhouse distrib
   ansible.builtin.get_url:
     url: "https://packages.clickhouse.com/rpm/lts/{{ item }}-{{ clickhouse_version }}.noarch.rpm"
@@ -156,11 +147,9 @@ vector_config:
   ansible.builtin.get_url:
     url: "https://packages.clickhouse.com/rpm/lts/clickhouse-common-static-{{ clickhouse_version }}.x86_64.rpm"
     dest: "./clickhouse-common-static-{{ clickhouse_version }}.rpm"
-```
 
-#### 2️⃣ Установка пакетов
+2️⃣ Установка пакетов
 
-```yaml
 - name: Install clickhouse packages
   ansible.builtin.yum:
     name:
@@ -168,11 +157,9 @@ vector_config:
       - clickhouse-server-{{ clickhouse_version }}.rpm
       - clickhouse-common-static-{{ clickhouse_version }}.rpm
   notify: Start clickhouse service
-```
 
-#### 3️⃣ Запуск сервиса
+3️⃣ Запуск сервиса
 
-```yaml
 - name: Ensure ClickHouse is running
   ansible.builtin.systemd:
     name: clickhouse-server
@@ -181,11 +168,9 @@ vector_config:
     daemon_reload: yes
   async: 300
   poll: 5
-```
 
-#### 4️⃣ Ожидание готовности
+4️⃣ Ожидание готовности
 
-```yaml
 - name: Wait until ClickHouse responds to queries
   ansible.builtin.command: "clickhouse-client -q 'SELECT 1'"
   register: ch_ready
@@ -194,11 +179,9 @@ vector_config:
   delay: 10
   changed_when: false
   failed_when: false
-```
 
-#### 5️⃣ Создание базы и таблицы
+5️⃣ Создание базы и таблицы
 
-```yaml
 - name: Create ClickHouse database
   ansible.builtin.command: "clickhouse-client -q 'CREATE DATABASE IF NOT EXISTS logs;'"
   register: create_db
@@ -210,64 +193,50 @@ vector_config:
     clickhouse-client -q "CREATE TABLE IF NOT EXISTS logs.logs_table
     (timestamp String, message String)
     ENGINE = MergeTree() ORDER BY timestamp;"
-```
 
----
+📦 Play 2: Install Vector
 
-## Play 2: Install Vector
+Параметры play
 
-### Параметры play
-
-```yaml
 - name: Install vector
   hosts: clickhouse
   become: true
   become_user: root
-```
 
-### Handlers
+Handlers
 
-```yaml
 handlers:
   - name: Restart vector service
     ansible.builtin.service:
       name: vector
       state: restarted
-```
 
-### Задачи
+Задачи
 
-#### 1️⃣ Скачивание Vector
+1️⃣ Скачивание Vector
 
-```yaml
 - name: Get vector distrib
   ansible.builtin.get_url:
     url: "https://yum.vector.dev/stable/vector-0/x86_64/vector-{{ vector_version }}-1.x86_64.rpm"
     dest: "./vector-{{ vector_version }}.rpm"
     mode: "0644"
   notify: Restart vector service
-```
 
-#### 2️⃣ Установка
+2️⃣ Установка
 
-```yaml
 - name: Install vector packages
   ansible.builtin.yum:
     name:
       - vector-{{ vector_version }}.rpm
     disable_gpg_check: true
-```
 
-#### 3️⃣ Применение handlers
+3️⃣ Применение handlers
 
-```yaml
 - name: Flush handlers to restart vector
   ansible.builtin.meta: flush_handlers
-```
 
-#### 4️⃣ Деплой конфигурации
+4️⃣ Деплой конфигурации
 
-```yaml
 - name: Deploy Vector configuration from template
   ansible.builtin.template:
     src: vector.toml.j2
@@ -277,15 +246,73 @@ handlers:
     mode: '0644'
     validate: /usr/bin/vector validate --config-toml %s
   notify: Restart vector service
-```
 
----
+📦 Play 3: Install Lighthouse
 
-## Шаблон конфигурации Vector
+Параметры play
 
-**Файл:** `templates/vector.toml.j2`
+- name: Install lighthouse
+  hosts: lighthouse
+  become: true
+  become_user: root
 
-```jinja2
+Задачи
+
+1️⃣ Скачивание Epel
+
+- name: Install epel-release
+  become: true
+  ansible.builtin.yum:
+    name: epel-release
+    state: present
+
+2️⃣ Установка веб-сервера Nginx
+
+- name: Install nginx
+  become: true
+  ansible.builtin.yum:
+    name: nginx
+    state: present
+
+3️⃣ Применение шаблона
+
+- name: Configure
+  become: true
+  ansible.builtin.template:
+    src: nginx_config.j2
+    dest: /etc/nginx/conf.d/lighthouse.conf
+    mode: "0644"
+
+4️⃣ Установка Git
+
+- name: Git Install
+  become: true
+  ansible.builtin.yum:
+    name: git
+    state: present
+
+5️⃣ Скачивание с репозитория
+
+- name: Clone repository
+  become: true
+  ansible.builtin.git:
+    repo: '{{ lighthouse_git }}'
+    dest: '{{ lighthouse_root_path }}'
+    version: master
+
+6️⃣ Запуск сервиса
+
+- name: Start nginx
+  become: true
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
+
+📝 Шаблон конфигурации Vector
+
+Файл: templates/vector.toml.j2
+
 data_dir = "/var/lib/vector/"
 
 [api]
@@ -313,104 +340,17 @@ type = "console"
 inputs = ["demo_logs"]
 encoding.codec = "json"
 
-```
+Ключевые параметры
 
-## Play 3: Install lighthouse
+Параметр | Значение | Пояснение
+endpoint | http://localhost:8123 | ClickHouse HTTP
+skip_unknown_fields | true | Пропуск лишних полей
+auth.strategy | basic | Basic Auth для ClickHouse
 
-### Параметры play
+📝 Шаблон конфигурации Lighthouse
 
-```yaml
-- name: Install lighthouse
-  hosts: lighthouse
-  become: true
-  become_user: root
-```
+Файл: templates/nginx_config.j2
 
-
-
-### Задачи
-
-#### 1️⃣ Скачивание Epel
-
-```yaml
-name: Install epel-release
-      become: true
-      ansible.builtin.yum:
-        name: epel-release
-        state: present
-```
-
-#### 2️⃣ Установка веб сервера Nginx
-
-```yaml
-name: Install nginx
-      become: true
-      ansible.builtin.yum:
-        name: nginx
-        state: present
-```
-
-#### 3️⃣ Применение шаблона
-
-```yaml
-name:  Configure
-      become: true
-      ansible.builtin.template:
-        src: nginx_config.j2
-        dest: /etc/nginx/conf.d/lighthouse.conf
-        mode: "0644"
-```
-
-#### 4️⃣ Установка Git
-
-```yaml
--- name: Git Install
-      become: true
-      ansible.builtin.yum:
-        name: git
-        state: present
-
-```
-#### 4️⃣ Скачивание с репозитория
-
-```yaml
-name:  Clone repository
-      become: true
-      ansible.builtin.git:
-        repo: '{{ lighthouse_git }}'
-        dest: '{{ lighthouse_root_path }}'
-        version: master
-
----
-
-```
-#### 5️⃣ Скачивание с репозитория
-
-```yaml
-name:  Clone repository
-      become: true
-      ansible.builtin.git:
-        repo: '{{ lighthouse_git }}'
-        dest: '{{ lighthouse_root_path }}'
-        version: master
-
-```
-#### 5️⃣ Запуск сервиса
-- name:  Start
-      become: true
-      ansible.builtin.service:
-        name: nginx
-        state: started
-        enabled: true
-
----
-
-
-
-## Шаблон конфигурации lighthouse
-
-**Файл:** `templates/nginx_config.j2`
-```
 {
   "clickhouse": {
     "host": "{{ hostvars['clickhouse-dev-1'].ansible_host_internal }}",
@@ -419,70 +359,45 @@ name:  Clone repository
     "password": ""
   }
 }
----
-### Ключевые параметры
 
-| Параметр | Значение | Пояснение |
-|----------|----------|-----------|
-| `endpoint` | `http://localhost:8123` |
-| `skip_unknown_fields` | `true` | Пропуск лишних полей |
-| `auth.strategy` | `basic` | Basic Auth для ClickHouse |
+▶️ Запуск Playbook
 
+Полный запуск
 
----
-
-## Запуск Playbook
-
-### Полный запуск
-
-```bash
 ansible-playbook -i inventory/prod.yml site.yml
-```
 
-### Проверка синтаксиса
+Проверка синтаксиса
 
-```bash
 ansible-playbook -i inventory/prod.yml site.yml --syntax-check
-```
 
-### Пробный прогон
+Пробный прогон
 
-```bash
 ansible-playbook -i inventory/prod.yml site.yml --check --diff
-```
 
-### Только ClickHouse
+Только ClickHouse
 
-```bash
 ansible-playbook -i inventory/prod.yml site.yml --start-at-task="Get clickhouse distrib"
-```
 
-### Только Vector
+Только Vector
 
-```bash
 ansible-playbook -i inventory/prod.yml site.yml --start-at-task="Get vector distrib"
-```
-### Только lighthouse
 
-```bash
+Только Lighthouse
+
 ansible-playbook -i inventory/prod.yml site.yml --start-at-task="Install epel-release"
 
----
+✅ Проверка результата
 
-## Проверка результата
+На хосте
 
-### На хосте
-
-```bash
 # 1. Статус сервисов
 sudo systemctl status clickhouse-server
 sudo systemctl status vector
-sudo systemctl status clickhouse
+sudo systemctl status nginx
 
 # 2. ClickHouse работает?
 curl -s http://localhost:8123/ping
 # Ok.
-
 clickhouse-client -q "SELECT version();"
 
 # 3. База и таблица созданы?
@@ -501,8 +416,10 @@ clickhouse-client --host 127.0.0.1 -q "SELECT count() FROM logs.logs_table;"
 # 5. Логи Vector
 sudo journalctl -u vector -n 20 --no-pager
 
+Lighthouse
 
-```
----
+Откройте в браузере http://<lighthouse-host>/ — должен отобразиться веб-интерфейс.
 
-<div align="center">
+📄 Лицензия
+
+Лицензия MIT. Подробнее — в файле LICENSE.
