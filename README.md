@@ -438,7 +438,7 @@ sudo journalctl -u vector -n 20 --no-pager
 
 Lighthouse
 
-Откройте в браузере http://<lighthouse-host>/ — должен отобразиться веб-интерфейс.
+Откройте в браузере http://lighthouse-host/#http://clickHouse-host:8123/ — должен отобразиться веб-интерфейс.
 
 📄 Лицензия
 
