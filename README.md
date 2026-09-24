@@ -1,6 +1,6 @@
-🚀 Ansible Project: ClickHouse + Vector + Lighthouse
+🚀 Ansible Roles Project: ClickHouse + Vector + Lighthouse
 
-Ansible playbook для автоматической установки и настройки стека аналитики логов: ClickHouse (СУБД), Vector (агент сбора логов) и Lighthouse (веб-интерфейс).
+Ansible-роли для автоматической установки и настройки стека аналитики логов: ClickHouse (СУБД), Vector (агент сбора логов) и Lighthouse (веб-интерфейс).
 
 📖 Содержание
 
@@ -8,23 +8,22 @@ Ansible playbook для автоматической установки и на�
 Требования
 Структура проекта
 Инвентарь
+Роли
+Роль clickhouse
+Роль vector-role
+Роль lighthouse
 Переменные
-Play 1: Install ClickHouse
-Play 2: Install Vector
-Play 3: Install Lighthouse
-Шаблон конфигурации Vector
-Шаблон конфигурации Lighthouse
 Запуск Playbook
 Проверка результата
 Лицензия
 
 📌 Общее описание
 
-Playbook разворачивает стек на серверах под управлением CentOS 7 и состоит из трёх play:
+Проект построен на Ansible-ролях и разворачивает стек на серверах под управлением CentOS 7. Каждая роль отвечает за свой компонент:
 
-Install ClickHouse — скачивание RPM-пакетов, установка СУБД, запуск сервиса, создание базы logs и таблицы logs_table.
-Install Vector — скачивание RPM-пакета, установка агента и деплой конфигурации из Jinja2-шаблона.
-Install Lighthouse — установка Nginx, Git, клонирование репозитория и публикация веб-интерфейса.
+clickhouse — установка и настройка СУБД ClickHouse, создание базы logs и таблицы logs_table.
+vector-role — установка агента Vector и деплой его конфигурации из Jinja2-шаблона.
+lighthouse — установка Nginx, Git, клонирование репозитория и публикация веб-интерфейса Lighthouse.
 
 Целевые хосты: группы clickhouse и lighthouse из инвентаря.
 Пользователь: root (через become).
@@ -73,12 +72,28 @@ ansible-project/
 ├── group_vars/
 │   ├── clickhouse/vars.yml
 │   └── lighthouse/vars.yml
-├── templates/
-│   ├── vector.toml.j2
-│   └── nginx_config.j2
-├── clickhouse/          # роль ClickHouse
-├── vector-role/         # роль Vector
-└── lighthouse/          # роль Lighthouse
+├── roles/
+│   ├── clickhouse/
+│   │   ├── defaults/main.yml
+│   │   ├── handlers/main.yml
+│   │   ├── meta/main.yml
+│   │   ├── tasks/main.yml
+│   │   └── README.md
+│   ├── vector-role/
+│   │   ├── defaults/main.yml
+│   │   ├── handlers/main.yml
+│   │   ├── meta/main.yml
+│   │   ├── tasks/main.yml
+│   │   ├── templates/vector.toml.j2
+│   │   └── README.md
+│   └── lighthouse/
+│       ├── defaults/main.yml
+│       ├── handlers/main.yml
+│       ├── meta/main.yml
+│       ├── tasks/main.yml
+│       ├── templates/nginx_config.j2
+│       └── README.md
+└── site.yml
 
 🖥 Инвентарь
 
@@ -100,30 +115,11 @@ lighthouse:
 ansible_host | IP-адрес или доменное имя ВМ
 ansible_user | Пользователь для SSH
 
-🔧 Переменные
+🧩 Роли
 
-Все переменные, которые можно переопределить, хранятся в group_vars/<group>/vars.yml, а также в таблице ниже.
+Роль clickhouse
 
-Name | Default Value | Description
-clickhouse_version | 22.3.3.44 | Версия ClickHouse. Поддерживается только 22.x LTS
-clickhouse_packages | [clickhouse-client, clickhouse-server, clickhouse-common-static] | Список RPM-пакетов ClickHouse
-clickhouse_database | logs | Имя базы данных для логов
-clickhouse_table | logs_table | Имя таблицы для логов
-vector_version | 0.31.0 | Версия Vector
-vector_config_dir | {{ ansible_user_dir }}/vector_config | Директория с конфигурацией Vector
-vector_config | {} | Дополнительные параметры конфигурации Vector
-lighthouse_git | URL репозитория | Git-репозиторий Lighthouse
-lighthouse_root_path | /var/www/lighthouse | Директория для статики Lighthouse
-hostvars['clickhouse-dev-1'].ansible_host_internal | — | Внутренний адрес ClickHouse для Lighthouse
-
-📦 Play 1: Install ClickHouse
-
-Параметры play
-
-- name: Install Clickhouse
-  hosts: clickhouse
-  become: true
-  become_user: root
+Назначение: установка ClickHouse, запуск сервиса, создание базы logs и таблицы logs_table.
 
 Handlers
 
@@ -131,7 +127,7 @@ Handler | Назначение
 Start clickhouse service | Перезапуск clickhouse-server
 Ensure systemd is in a clean state | systemctl daemon-reexec
 
-Задачи
+Tasks
 
 1️⃣ Скачивание RPM-пакетов
 
@@ -194,14 +190,9 @@ Ensure systemd is in a clean state | systemctl daemon-reexec
     (timestamp String, message String)
     ENGINE = MergeTree() ORDER BY timestamp;"
 
-📦 Play 2: Install Vector
+Роль vector-role
 
-Параметры play
-
-- name: Install vector
-  hosts: clickhouse
-  become: true
-  become_user: root
+Назначение: установка Vector, деплой конфигурации из шаблона vector.toml.j2, запуск сервиса.
 
 Handlers
 
@@ -211,7 +202,7 @@ handlers:
       name: vector
       state: restarted
 
-Задачи
+Tasks
 
 1️⃣ Скачивание Vector
 
@@ -247,16 +238,11 @@ handlers:
     validate: /usr/bin/vector validate --config-toml %s
   notify: Restart vector service
 
-📦 Play 3: Install Lighthouse
+Роль lighthouse
 
-Параметры play
+Назначение: установка Nginx и Git, клонирование репозитория Lighthouse, деплой конфига и запуск сервиса.
 
-- name: Install lighthouse
-  hosts: lighthouse
-  become: true
-  become_user: root
-
-Задачи
+Tasks
 
 1️⃣ Скачивание Epel
 
@@ -309,9 +295,25 @@ handlers:
     state: started
     enabled: true
 
+🔧 Переменные
+
+Все переменные, которые можно переопределить, хранятся в defaults/main.yml каждой роли и в group_vars/<group>/vars.yml.
+
+Name | Default Value | Description
+clickhouse_version | 22.3.3.44 | Версия ClickHouse. Поддерживается только 22.x LTS
+clickhouse_packages | [clickhouse-client, clickhouse-server, clickhouse-common-static] | Список RPM-пакетов ClickHouse
+clickhouse_database | logs | Имя базы данных для логов
+clickhouse_table | logs_table | Имя таблицы для логов
+vector_version | 0.31.0 | Версия Vector
+vector_config_dir | {{ ansible_user_dir }}/vector_config | Директория с конфигурацией Vector
+vector_config | {} | Дополнительные параметры конфигурации Vector
+lighthouse_git | URL репозитория | Git-репозиторий Lighthouse
+lighthouse_root_path | /var/www/lighthouse | Директория для статики Lighthouse
+hostvars['clickhouse-dev-1'].ansible_host_internal | — | Внутренний адрес ClickHouse для Lighthouse
+
 📝 Шаблон конфигурации Vector
 
-Файл: templates/vector.toml.j2
+Файл: roles/vector-role/templates/vector.toml.j2
 
 data_dir = "/var/lib/vector/"
 
@@ -349,7 +351,7 @@ auth.strategy | basic | Basic Auth для ClickHouse
 
 📝 Шаблон конфигурации Lighthouse
 
-Файл: templates/nginx_config.j2
+Файл: roles/lighthouse/templates/nginx_config.j2
 
 {
   "clickhouse": {
@@ -361,6 +363,23 @@ auth.strategy | basic | Basic Auth для ClickHouse
 }
 
 ▶️ Запуск Playbook
+
+site.yml
+
+- name: Install Clickhouse
+  hosts: clickhouse
+  become: true
+  become_user: root
+  roles:
+    - clickhouse
+    - vector-role
+
+- name: Install lighthouse
+  hosts: lighthouse
+  become: true
+  become_user: root
+  roles:
+    - lighthouse
 
 Полный запуск
 
@@ -376,15 +395,15 @@ ansible-playbook -i inventory/prod.yml site.yml --check --diff
 
 Только ClickHouse
 
-ansible-playbook -i inventory/prod.yml site.yml --start-at-task="Get clickhouse distrib"
+ansible-playbook -i inventory/prod.yml site.yml --tags clickhouse
 
 Только Vector
 
-ansible-playbook -i inventory/prod.yml site.yml --start-at-task="Get vector distrib"
+ansible-playbook -i inventory/prod.yml site.yml --tags vector
 
 Только Lighthouse
 
-ansible-playbook -i inventory/prod.yml site.yml --start-at-task="Install epel-release"
+ansible-playbook -i inventory/prod.yml site.yml --tags lighthouse
 
 ✅ Проверка результата
 
