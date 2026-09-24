@@ -63,6 +63,7 @@ ansible-galaxy collection install -r requirements.yml
 
 📁 Структура проекта
 
+```text
 ansible-project/
 ├── site.yml
 ├── requirements.yml
@@ -72,28 +73,28 @@ ansible-project/
 ├── group_vars/
 │   ├── clickhouse/vars.yml
 │   └── lighthouse/vars.yml
-├── roles/
-│   ├── clickhouse/
-│   │   ├── defaults/main.yml
-│   │   ├── handlers/main.yml
-│   │   ├── meta/main.yml
-│   │   ├── tasks/main.yml
-│   │   └── README.md
-│   ├── vector-role/
-│   │   ├── defaults/main.yml
-│   │   ├── handlers/main.yml
-│   │   ├── meta/main.yml
-│   │   ├── tasks/main.yml
-│   │   ├── templates/vector.toml.j2
-│   │   └── README.md
-│   └── lighthouse/
-│       ├── defaults/main.yml
-│       ├── handlers/main.yml
-│       ├── meta/main.yml
-│       ├── tasks/main.yml
-│       ├── templates/nginx_config.j2
-│       └── README.md
-└── site.yml
+└── roles/
+    ├── clickhouse/
+    │   ├── defaults/main.yml
+    │   ├── handlers/main.yml
+    │   ├── meta/main.yml
+    │   ├── tasks/main.yml
+    │   └── README.md
+    ├── vector-role/
+    │   ├── defaults/main.yml
+    │   ├── handlers/main.yml
+    │   ├── meta/main.yml
+    │   ├── tasks/main.yml
+    │   ├── templates/vector.toml.j2
+    │   └── README.md
+    └── lighthouse/
+        ├── defaults/main.yml
+        ├── handlers/main.yml
+        ├── meta/main.yml
+        ├── tasks/main.yml
+        ├── templates/nginx_config.j2
+        └── README.md
+```
 
 🖥 Инвентарь
 
@@ -416,15 +417,15 @@ sudo systemctl status nginx
 
 # 2. ClickHouse работает?
 curl -s http://localhost:8123/ping
-# Ok.
+Ok.
 clickhouse-client -q "SELECT version();"
 
 # 3. База и таблица созданы?
 clickhouse-client --host 127.0.0.1 -q "SHOW DATABASES;"
 clickhouse-client --host 127.0.0.1 -q "SHOW TABLES FROM logs;"
 clickhouse-client --host 127.0.0.1 -q "DESCRIBE logs.logs_table;"
-# timestamp  String
-# message    String
+ timestamp  String
+ message    String
 
 # 4. Данные идут?
 clickhouse-client --host 127.0.0.1 -q "SELECT count() FROM logs.logs_table;"
