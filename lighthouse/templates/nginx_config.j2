@@ -1,0 +1,37 @@
+server {
+    listen {{ lighthouse_nginx_port | default(80) }};
+    server_name {{ lighthouse_server_name | default('lighthouse.local') }};
+
+    # Корень со статикой Lighthouse
+    root /opt/lighthouse;
+    index index.html;
+
+    # Для SPA: любой путь → index.html
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Проксирование к ClickHouse (обход CORS)
+    location /clickhouse/ {
+        proxy_pass http://{{ hostvars['clickhouse-dev-1'].ansible_host_internal }}:8123;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Таймауты для длинных запросов
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 60s;
+    }
+
+    # Кэширование статики
+    location /static/ {
+        alias /opt/lighthouse/static/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Логи
+    access_log /var/log/nginx/lighthouse-access.log;
+    error_log  /var/log/nginx/lighthouse-error.log;
+}

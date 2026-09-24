@@ -1,0 +1,11 @@
+---
+- name: Start clickhouse service
+  become: true
+  ansible.builtin.systemd:
+    name: clickhouse-server
+    state: restarted
+    daemon_reload: yes
+- name: Ensure systemd is in a clean state
+  ansible.builtin.command: systemctl daemon-reexec
+  become: true
+  changed_when: false

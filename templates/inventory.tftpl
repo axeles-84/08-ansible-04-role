@@ -1,0 +1,11 @@
+---
+%{ for group_name, hosts in groups ~}
+    ${ group_name }:
+      hosts:
+%{ for host in hosts ~}
+        ${ host.name }:
+            ansible_host: ${ host.external_ip }
+            ansible_host_internal: ${ host.internal_ip }
+            ansible_user: centos
+%{ endfor ~}
+%{ endfor ~}

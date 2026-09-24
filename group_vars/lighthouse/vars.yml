@@ -1,0 +1,8 @@
+---
+lighthouse_root_path: "/opt/lighthouse"
+lighthouse_git: 'https://github.com/VKCOM/lighthouse'
+lighthouse_server_name: "lighthouse"
+lighthouse_clickhouse_host: "{{ hostvars['clickhouse-dev-1'].ansible_host_internal }}"
+lighthouse_clickhouse_port: 8123
+lighthouse_user: "default"
+lighthouse_password: ""

@@ -1,0 +1,68 @@
+---
+- name: Get clickhouse distrib
+  ansible.builtin.get_url:
+    url: "https://packages.clickhouse.com/rpm/lts/{{ item }}-{{ clickhouse_version }}.noarch.rpm"
+    dest: "./{{ item }}-{{ clickhouse_version }}.rpm"
+  with_items:
+    - clickhouse-client
+    - clickhouse-server
+- name: Get clickhouse distrib common
+  ansible.builtin.get_url:
+    url: "https://packages.clickhouse.com/rpm/lts/clickhouse-common-static-{{ clickhouse_version }}.x86_64.rpm"
+    dest: "./clickhouse-common-static-{{ clickhouse_version }}.rpm"
+- name: Install clickhouse packages
+  become: true
+  ansible.builtin.yum:
+    name:
+      - clickhouse-client-{{ clickhouse_version }}.rpm
+      - clickhouse-server-{{ clickhouse_version }}.rpm
+      - clickhouse-common-static-{{ clickhouse_version }}.rpm
+  notify: Start clickhouse service
+- name: Ensure ClickHouse is running
+  ansible.builtin.systemd:
+    name: clickhouse-server
+    state: restarted
+    enabled: yes
+    daemon_reload: yes
+      
+- name: Wait until ClickHouse responds to queries
+  ansible.builtin.command: "clickhouse-client --host 127.0.0.1 -q  'SELECT 1'"
+  register: ch_ready
+  until: ch_ready.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+  failed_when: false
+
+- name: Create ClickHouse database
+  ansible.builtin.command: "clickhouse-client --host 127.0.0.1 -q 'CREATE DATABASE IF NOT EXISTS logs;'"
+  register: create_db
+  failed_when: create_db.rc != 0 and create_db.rc != 82
+  changed_when: create_db.rc == 0
+- name: Create ClickHouse table
+  ansible.builtin.command: >
+    clickhouse-client --host 127.0.0.1 -q "CREATE TABLE IF NOT EXISTS logs.logs_table
+    (timestamp String, message String)
+    ENGINE = MergeTree() ORDER BY timestamp;"
+  register: create_table
+  failed_when: create_table.rc != 0
+  changed_when: create_table.rc == 0
+  notify: Start clickhouse service
+
+
+- name: Configure ClickHouse listen_host
+  ansible.builtin.copy:
+        dest: /etc/clickhouse-server/config.d/listen.xml
+        owner: clickhouse
+        group: clickhouse
+        mode: '0644'
+        content: |
+          <?xml version="1.0"?>
+          <yandex>
+              <listen_host>0.0.0.0</listen_host>
+          </yandex>
+  become: true
+  notify: Start clickhouse service
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
