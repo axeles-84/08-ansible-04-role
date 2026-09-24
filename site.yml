@@ -5,15 +5,18 @@
   become_user: root 
   roles:
     - clickhouse
+  tags: clickhouse
 - name: Install Vector
   hosts: vector
   become: true
   become_user: root 
   roles:
     - vector-role
+  tags: vector
 - name: Install lighthouse
   hosts: lighthouse
   become: true
   become_user: root 
   roles:
     - lighthouse
+  tags: lighthouse   
